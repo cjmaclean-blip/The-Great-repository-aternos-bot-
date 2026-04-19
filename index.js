@@ -335,4 +335,630 @@ app.get("/", (req, res) => {
 '          <div class="bar-track"><div class="bar-fill bar-hp" id="hp-bar" style="width:0%"></div></div>\n' +
 '        </div>\n' +
 '        <div class="bar-row">\n' +
-'        
+'          <div class="bar-label"><span>🍖 Food</span><span id="food-txt">---</span></div>\n' +
+'          <div class="bar-track"><div class="bar-fill bar-food" id="food-bar" style="width:0%"></div></div>\n' +
+'        </div>\n' +
+'      </div>\n' +
+'      <div class="card">\n' +
+'        <div class="card-title">Players Online</div>\n' +
+'        <div class="player-list" id="player-list"><div class="empty">No players detected</div></div>\n' +
+'      </div>\n' +
+'    </div>\n' +
+'    <div class="card">\n' +
+'      <div class="card-title">Hotbar Inventory</div>\n' +
+'      <div class="inv-grid" id="inv-grid"></div>\n' +
+'    </div>\n' +
+'    <div class="card">\n' +
+'      <div class="card-title">💬 In-Game Chat</div>\n' +
+'      <div class="chat-box" id="chat-box"><div class="empty">No chat yet</div></div>\n' +
+'      <div class="input-row">\n' +
+'        <input class="txt-input" id="chat-input" type="text" placeholder="Send a message in-game..." maxlength="256">\n' +
+'        <button class="btn btn-blue" onclick="sendChat()">Send</button>\n' +
+'      </div>\n' +
+'    </div>\n' +
+'    <div id="kick-section" style="display:none;margin-bottom:16px">\n' +
+'      <div class="card-title" style="margin-bottom:8px">🧠 Last Kick Analysis</div>\n' +
+'      <div class="kick-card" id="kick-card">\n' +
+'        <div class="kick-header" id="kick-header"></div>\n' +
+'        <div class="kick-tip" id="kick-tip"></div>\n' +
+'      </div>\n' +
+'    </div>\n' +
+'    <div class="controls">\n' +
+'      <button class="ctl-btn btn-start" id="btn-start" onclick="startBot()">▶ Start Bot</button>\n' +
+'      <button class="ctl-btn btn-stop" id="btn-stop" onclick="stopBot()">■ Stop Bot</button>\n' +
+'    </div>\n' +
+'  </div>\n' +
+'\n' +
+'  <!-- LOGS -->\n' +
+'  <div class="page" id="page-logs">\n' +
+'    <div class="page-header"><h2>Bot Logs</h2><p>Live output · auto-refreshes every 5s</p></div>\n' +
+'    <div class="card" style="padding:16px">\n' +
+'      <div class="log-body" id="log-body"><div class="empty">No logs yet</div></div>\n' +
+'      <div class="log-console">\n' +
+'        <input type="text" id="log-input" placeholder="Send command or message...">\n' +
+'        <button onclick="sendLogCmd()">Send</button>\n' +
+'      </div>\n' +
+'    </div>\n' +
+'  </div>\n' +
+'\n' +
+'  <!-- AI -->\n' +
+'  <div class="page" id="page-ai">\n' +
+'    <div class="page-header"><h2>AI Helper</h2><p>Powered by Claude via Puter.js — free, no API key needed</p></div>\n' +
+'    <div class="ai-wrap">\n' +
+'      <div class="ai-quick">\n' +
+'        <button class="ai-quick-btn" onclick="quickAsk(\'What is the bot currently doing?\')">What\'s the bot doing?</button>\n' +
+'        <button class="ai-quick-btn" onclick="quickAsk(\'Are there any errors in the logs?\')">Check for errors</button>\n' +
+'        <button class="ai-quick-btn" onclick="quickAsk(\'Why did the bot get kicked?\')">Why kicked?</button>\n' +
+'        <button class="ai-quick-btn" onclick="quickAsk(\'List all players online\')">Who\'s online?</button>\n' +
+'      </div>\n' +
+'      <div class="ai-msgs" id="ai-msgs">\n' +
+'        <div class="ai-msg">\n' +
+'          <div class="ai-av bot">🤖</div>\n' +
+'          <div class="ai-bubble bot">\n' +
+'            Hey! I can see your bot\'s live status, logs, and chat. Ask me anything — debugging, commands, or general questions.<br><br>\n' +
+'            <strong>⚠️ IMPORTANT:</strong> Before using the AI, you need to login to Puter.js. After sending your first message, a login prompt will appear. Just login and select your account to use the AI features!\n' +
+'          </div>\n' +
+'        </div>\n' +
+'      </div>\n' +
+'      <div class="ai-input-row">\n' +
+'        <textarea class="ai-textarea" id="ai-input" rows="1" placeholder="Ask anything... (Login prompt will appear on first message)"></textarea>\n' +
+'        <button class="btn btn-blue" id="ai-send" onclick="sendAI()" style="border-radius:12px;padding:12px 20px;font-size:14px;font-weight:700">Send</button>\n' +
+'      </div>\n' +
+'    </div>\n' +
+'  </div>\n' +
+'\n' +
+'</main>\n' +
+'\n' +
+'<script>\n' +
+'let aiResponseCount = 0;\n' +
+'\n' +
+'function esc(s){var d=document.createElement("div");d.textContent=String(s);return d.innerHTML;}\n' +
+'function fmt(s){if(s<0)return "--";return Math.floor(s/3600)+"h "+Math.floor((s%3600)/60)+"m "+(s%60)+"s";}\n' +
+'function post(url,body){return fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}).then(function(r){return r.json();});}\n' +
+'\n' +
+'function nav(page,el){\n' +
+'  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});\n' +
+'  document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});\n' +
+'  document.getElementById("page-"+page).classList.add("active");\n' +
+'  if(el)el.classList.add("active");\n' +
+'  if(page==="logs")refreshLogs();\n' +
+'}\n' +
+'\n' +
+'function update(){\n' +
+'  fetch("/health").then(function(r){return r.json();}).then(function(h){\n' +
+'    var online=h.status==="connected";\n' +
+'    document.getElementById("hero").className="hero "+(online?"online":"offline");\n' +
+'    document.getElementById("pulse").className="pulse "+(online?"online":"offline");\n' +
+'    document.getElementById("pulse").textContent=online?"⚡":"💤";\n' +
+'    var hl=document.getElementById("hero-label");\n' +
+'    hl.className="hero-label "+(online?"online":"offline");\n' +
+'    hl.textContent=online?"Connected":"Disconnected";\n' +
+'    document.getElementById("hero-detail").textContent=online?"Playing on "+h.serverIp+":"+h.serverPort:"Not connected to server";\n' +
+'    document.getElementById("ping-badge").textContent="Ping: "+(h.ping!=null?h.ping+"ms":"—");\n' +
+'    document.getElementById("side-dot").className="side-dot "+(online?"online":"offline");\n' +
+'    document.getElementById("side-txt").textContent=online?"Online":"Offline";\n' +
+'    document.getElementById("uptime-val").textContent=h.uptime>0?fmt(h.uptime):"—";\n' +
+'    document.getElementById("reconnect-val").textContent=h.reconnectAttempts;\n' +
+'    document.getElementById("coords-val").textContent=h.coords?h.coords.x.toFixed(1)+", "+h.coords.y.toFixed(1)+", "+h.coords.z.toFixed(1):"—";\n' +
+'    var hp=h.health,food=h.food;\n' +
+'    document.getElementById("hp-txt").textContent=hp!=null?hp+"/20":"—";\n' +
+'    document.getElementById("hp-bar").style.width=hp!=null?(hp/20*100)+"%":"0%";\n' +
+'    document.getElementById("food-txt").textContent=food!=null?food+"/20":"—";\n' +
+'    document.getElementById("food-bar").style.width=food!=null?(food/20*100)+"%":"0%";\n' +
+'    var pl=document.getElementById("player-list");\n' +
+'    if(h.players&&h.players.length){\n' +
+'      pl.innerHTML=h.players.map(function(p){\n' +
+'        return \'<div class="player-item"><span class="player-dot"></span>\'+esc(p.username)+\'<span class="player-ping">\'+p.ping+\'ms</span></div>\';\n' +
+'      }).join("");\n' +
+'    }else{pl.innerHTML=\'<div class="empty">No players detected</div>\';}\n' +
+'    var slots=Array(9).fill(null);\n' +
+'    if(h.inventory)h.inventory.forEach(function(item){slots[item.slot]=item;});\n' +
+'    document.getElementById("inv-grid").innerHTML=slots.map(function(item){\n' +
+'      if(!item)return \'<div class="inv-slot"><span style="color:var(--border)">·</span></div>\';\n' +
+'      return \'<div class="inv-slot"><span class="item-name">\'+esc(item.displayName)+\'</span><span class="item-count">\'+item.count+\'</span></div>\';\n' +
+'    }).join("");\n' +
+'    if(h.lastKickAnalysis){\n' +
+'      var k=h.lastKickAnalysis;\n' +
+'      document.getElementById("kick-section").style.display="block";\n' +
+'      document.getElementById("kick-card").style.cssText="border-color:"+k.color+";background:"+k.color+"11";\n' +
+'      document.getElementById("kick-header").innerHTML=k.icon+\' <span style="color:\'+k.color+\'">\'+esc(k.label)+\'</span>\';\n' +
+'      document.getElementById("kick-tip").textContent=k.tip;\n' +
+'    }else{document.getElementById("kick-section").style.display="none";}\n' +
+'    document.getElementById("btn-start").disabled=!!h.botRunning;\n' +
+'    document.getElementById("btn-stop").disabled=!h.botRunning;\n' +
+'  }).catch(function(){});\n' +
+'  fetch("/chat-history").then(function(r){return r.json();}).then(function(chat){\n' +
+'    var box=document.getElementById("chat-box");\n' +
+'    if(!chat.length){box.innerHTML=\'<div class="empty">No chat yet</div>\';return;}\n' +
+'    box.innerHTML=chat.map(function(c){\n' +
+'      var t=new Date(c.time);\n' +
+'      var ts=String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0");\n' +
+'      return \'<div class="chat-msg"><span class="chat-time">\'+ts+\'</span><span class="chat-user">\'+esc(c.username)+\'</span>\'+esc(c.message)+\'</div>\';\n' +
+'    }).join("");\n' +
+'    box.scrollTop=box.scrollHeight;\n' +
+'  }).catch(function(){});\n' +
+'}\n' +
+'\n' +
+'function refreshLogs(){\n' +
+'  fetch("/logs-json").then(function(r){return r.json();}).then(function(logs){\n' +
+'    var body=document.getElementById("log-body");\n' +
+'    if(!logs.length){body.innerHTML=\'<div class="empty">No logs yet</div>\';return;}\n' +
+'    body.innerHTML=logs.map(function(l){\n' +
+'      var text=typeof l==="string"?l:(l.message||String(l));\n' +
+'      var cls="default";\n' +
+'      if(text.includes("[FATAL]")||text.includes("Error:"))cls="error";\n' +
+'      else if(text.includes("[KickAnalyzer]")||text.includes("Reconnecting"))cls="warn";\n' +
+'      else if(text.includes("Spawned")||text.includes("started"))cls="success";\n' +
+'      else if(text.includes("[Control]")||text.includes("[Console]"))cls="control";\n' +
+'      return \'<span class="log-entry \'+cls+\'">\'+esc(text)+\'</span>\';\n' +
+'    }).join("");\n' +
+'    body.scrollTop=body.scrollHeight;\n' +
+'  }).catch(function(){});\n' +
+'}\n' +
+'\n' +
+'function sendChat(){\n' +
+'  var inp=document.getElementById("chat-input");\n' +
+'  var msg=inp.value.trim();if(!msg)return;\n' +
+'  inp.value="";\n' +
+'  post("/command",{command:msg});\n' +
+'}\n' +
+'document.getElementById("chat-input").addEventListener("keydown",function(e){if(e.key==="Enter")sendChat();});\n' +
+'\n' +
+'function sendLogCmd(){\n' +
+'  var inp=document.getElementById("log-input");\n' +
+'  var msg=inp.value.trim();if(!msg)return;\n' +
+'  inp.value="";\n' +
+'  post("/command",{command:msg});\n' +
+'}\n' +
+'document.getElementById("log-input").addEventListener("keydown",function(e){if(e.key==="Enter")sendLogCmd();});\n' +
+'\n' +
+'function startBot(){\n' +
+'  document.getElementById("btn-start").disabled=true;\n' +
+'  post("/start").then(function(){setTimeout(update,1500);}).catch(function(){\n' +
+'    document.getElementById("btn-start").disabled=false;\n' +
+'  });\n' +
+'}\n' +
+'function stopBot(){\n' +
+'  document.getElementById("btn-stop").disabled=true;\n' +
+'  post("/stop").then(function(){setTimeout(update,500);}).catch(function(){\n' +
+'    document.getElementById("btn-stop").disabled=false;\n' +
+'  });\n' +
+'}\n' +
+'\n' +
+'var aiHistory=[];\n' +
+'\n' +
+'function quickAsk(text){document.getElementById("ai-input").value=text;sendAI();}\n' +
+'\n' +
+'function appendMsg(role,html,action){\n' +
+'  var msgs=document.getElementById("ai-msgs");\n' +
+'  var wrap=document.createElement("div");wrap.className="ai-msg "+role;\n' +
+'  var av=document.createElement("div");av.className="ai-av "+(role==="user"?"user":"bot");\n' +
+'  av.textContent=role==="user"?"👤":"🤖";\n' +
+'  var bubble=document.createElement("div");bubble.className="ai-bubble "+(role==="user"?"user":"bot");\n' +
+'  bubble.innerHTML=html;\n' +
+'  if(action&&action.type==="command"){\n' +
+'    var pill=document.createElement("div");pill.className="ai-pill";\n' +
+'    pill.textContent="⚡ Ran: "+action.cmd;bubble.appendChild(pill);\n' +
+'  }\n' +
+'  wrap.appendChild(av);wrap.appendChild(bubble);msgs.appendChild(wrap);\n' +
+'  msgs.scrollTop=msgs.scrollHeight;\n' +
+'}\n' +
+'\n' +
+'function fmtAI(text){\n' +
+'  text = String(text || "");\n' +
+'  return text\n' +
+'    .replace(/&/g,"&amp;")\n' +
+'    .replace(/</g,"&lt;")\n' +
+'    .replace(/>/g,"&gt;")\n' +
+'    .replace(/```([\\s\\S]*?)```/g,"<pre>$1</pre>")\n' +
+'    .replace(/`([^`\\n]+)`/g,"<code>$1</code>")\n' +
+'    .replace(/\\*\\*(.*?)\\*\\*/g,"<strong>$1</strong>")\n' +
+'    .replace(/\\n/g,"<br>");\n' +
+'}\n' +
+'\n' +
+'function showTyping(){\n' +
+'  var msgs=document.getElementById("ai-msgs");\n' +
+'  var d=document.createElement("div");d.className="ai-msg";d.id="ai-typing";\n' +
+'  d.innerHTML=\'<div class="ai-av bot">🤖</div><div class="ai-bubble bot"><div class="typing"><span></span><span></span><span></span></div></div>\';\n' +
+'  msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;\n' +
+'}\n' +
+'function hideTyping(){var el=document.getElementById("ai-typing");if(el)el.remove();}\n' +
+'\n' +
+'async function sendAI(){\n' +
+'  var inp=document.getElementById("ai-input");\n' +
+'  var text=inp.value.trim();if(!text)return;\n' +
+'  inp.value="";inp.style.height="auto";\n' +
+'  document.getElementById("ai-send").disabled=true;\n' +
+'  appendMsg("user",fmtAI(text));\n' +
+'  var ctx="";\n' +
+'  try{\n' +
+'    var h=await fetch("/health").then(function(r){return r.json();});\n' +
+'    var logs=await fetch("/logs-json").then(function(r){return r.json();});\n' +
+'    var chat=await fetch("/chat-history").then(function(r){return r.json();});\n' +
+'    ctx="BOT STATUS: connected="+h.status+", uptime="+h.uptime+"s, server="+h.serverIp+":"+h.serverPort+\n' +
+'      ", ping="+(h.ping||"N/A")+"ms, health="+(h.health||"N/A")+"/20, food="+(h.food||"N/A")+"/20"+\n' +
+'      ", reconnects="+h.reconnectAttempts+\n' +
+'      ", players="+(h.players&&h.players.length?h.players.map(function(p){return p.username;}).join(", "):"none")+\n' +
+'      ", lastKick="+(h.lastKickAnalysis?h.lastKickAnalysis.label+": "+h.lastKickAnalysis.tip:"none")+\n' +
+'      "\\n\\nRECENT LOGS:\\n"+logs.slice(-60).join("\\n")+\n' +
+'      "\\n\\nIN-GAME CHAT:\\n"+(chat.slice(-10).map(function(c){return "<"+c.username+"> "+c.message;}).join("\\n")||"none");\n' +
+'  }catch(e){}\n' +
+'  var sysPrompt="You are an AI assistant inside a Minecraft AFK bot dashboard. Expert in Node.js, mineflayer, Minecraft servers.\\n\\n"+ctx+\n' +
+'    "\\n\\nIf the user wants to run a bot command, include EXACTLY at the END:\\n__ACTION__{\\"type\\":\\"command\\",\\"cmd\\":\\"/the-command\\"}__END__\\n\\nBe concise. Format code in markdown.";\n' +
+'  var fullPrompt=sysPrompt+"\\n\\n"+\n' +
+'    aiHistory.map(function(m){return (m.role==="user"?"User: ":"Assistant: ")+m.parts[0].text;}).join("\\n")+\n' +
+'    "\\n\\nUser: "+text+"\\nAssistant:";\n' +
+'  showTyping();\n' +
+'  try{\n' +
+'    var response=await puter.ai.chat(fullPrompt,{model:"claude-sonnet-4-5",stream:false});\n' +
+'    hideTyping();\n' +
+'    var reply=typeof response==="string"?response:\n' +
+'      (response&&response.message&&response.message.content&&response.message.content[0]&&response.message.content[0].text)||\n' +
+'      (response&&response.text)||String(response);\n' +
+'    \n' +
+'    aiResponseCount++;\n' +
+'    if(aiResponseCount === 1 || aiResponseCount % 8 === 0) {\n' +
+'      reply = reply + "\\n\\n📢 Subscribe to @ropsey on YouTube! 🎮✨";\n' +
+'    }\n' +
+'    \n' +
+'    var action=null;\n' +
+'    var match=reply.match(/__ACTION__(.+?)__END__/s);\n' +
+'    if(match){\n' +
+'      try{\n' +
+'        action=JSON.parse(match[1]);\n' +
+'        reply=reply.replace(/__ACTION__.+?__END__/s,"").trim();\n' +
+'        if(action.type==="command")await post("/command",{command:action.cmd});\n' +
+'      }catch(e){}\n' +
+'    }\n' +
+'    aiHistory.push({role:"user",parts:[{text:text}]});\n' +
+'    aiHistory.push({role:"model",parts:[{text:reply}]});\n' +
+'    if(aiHistory.length>20)aiHistory=aiHistory.slice(-20);\n' +
+'    appendMsg("bot",fmtAI(reply),action);\n' +
+'  }catch(e){\n' +
+'    hideTyping();\n' +
+'    appendMsg("bot","❌ <strong>Error:</strong> "+esc(e.message));\n' +
+'  }\n' +
+'  document.getElementById("ai-send").disabled=false;\n' +
+'}\n' +
+'\n' +
+'var aiTa=document.getElementById("ai-input");\n' +
+'aiTa.addEventListener("input",function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,120)+"px";});\n' +
+'aiTa.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAI();}});\n' +
+'\n' +
+'(function(){\n' +
+'  var g=document.getElementById("inv-grid");\n' +
+'  g.innerHTML=Array(9).fill(\'<div class="inv-slot"><span style="color:var(--border)">·</span></div>\').join("");\n' +
+'})();\n' +
+'\n' +
+'setInterval(update,4000);\n' +
+'setInterval(function(){\n' +
+'  if(document.getElementById("page-logs").classList.contains("active"))refreshLogs();\n' +
+'},5000);\n' +
+'update();\n' +
+'</script>\n' +
+'</body>\n' +
+'</html>';
+
+  res.send(html);
+});
+
+// ── SERVER ───────────────────────────────────────────────────
+const server = app.listen(PORT, "0.0.0.0", () => {
+  addLog(`[Server] HTTP server started on port ${server.address().port}`);
+});
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    addLog(`[Server] Port ${PORT} in use, trying ${PORT + 1}`);
+    server.listen(PORT + 1, "0.0.0.0");
+  } else {
+    addLog(`[Server] Error: ${err.message}`);
+  }
+});
+
+function formatUptime(s){return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m '+(s%60)+'s';}
+
+// ── IMPROVED SELF-PING FOR RAILWAY & RENDER (24/7 OPERATION) ──
+function startSelfPing(){
+  // Platform detection - works on Railway AND Render
+  let url = null;
+  
+  // Check for Railway (modern)
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    url = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    addLog(`[KeepAlive] Railway detected: ${url}`);
+  }
+  // Check for Railway (legacy)
+  else if (process.env.RAILWAY_STATIC_URL) {
+    url = process.env.RAILWAY_STATIC_URL;
+    if (!url.startsWith("http")) url = `https://${url}`;
+    addLog(`[KeepAlive] Railway (legacy) detected: ${url}`);
+  }
+  // Check for Render
+  else if (process.env.RENDER_EXTERNAL_URL) {
+    url = process.env.RENDER_EXTERNAL_URL;
+    addLog(`[KeepAlive] Render detected: ${url}`);
+  }
+  // Check for Replit
+  else if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+    url = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+    addLog(`[KeepAlive] Replit detected: ${url}`);
+  }
+  // Fallback: try to detect from PORT (local development)
+  else if (process.env.PORT) {
+    addLog("[KeepAlive] ⚠️ No platform URL detected - running in local mode");
+    addLog("[KeepAlive] Self-ping disabled (not needed for local development)");
+    return;
+  }
+  
+  if(!url) {
+    addLog("[KeepAlive] ❌ Could not detect platform URL!");
+    addLog("[KeepAlive] For 24/7 operation, set one of these environment variables:");
+    addLog("[KeepAlive]   - RAILWAY_PUBLIC_DOMAIN (Railway)");
+    addLog("[KeepAlive]   - RENDER_EXTERNAL_URL (Render)");
+    addLog("[KeepAlive] Or use UptimeRobot (free) to ping your bot URL");
+    return;
+  }
+  
+  // Clean the URL
+  url = url.replace(/\/$/, '');
+  addLog(`[KeepAlive] ✅ Self-ping enabled for: ${url}`);
+  addLog(`[KeepAlive] ⏰ Pinging every 4 minutes to prevent sleeping`);
+  
+  // Ping every 4 minutes (Render/Railway free tiers sleep after 15-30 min)
+  setInterval(() => {
+    const pingUrl = `${url}/ping`;
+    const protocol = pingUrl.startsWith("https") ? https : http;
+    
+    protocol.get(pingUrl, (res) => {
+      // Only log errors, not successes (to keep logs clean)
+      if (res.statusCode !== 200) {
+        addLog(`[KeepAlive] ⚠️ Ping returned ${res.statusCode}`);
+      }
+    }).on("error", (e) => {
+      addLog(`[KeepAlive] ❌ Ping failed: ${e.message}`);
+    });
+  }, 4 * 60 * 1000); // Every 4 minutes
+}
+
+// Start self-ping (will auto-detect Railway or Render)
+startSelfPing();
+
+// Memory monitoring
+setInterval(() => {
+  const memUsed = process.memoryUsage().heapUsed / 1024 / 1024;
+  addLog(`[Memory] Heap: ${memUsed.toFixed(2)} MB`);
+  
+  // Warning if memory is high (prevent crashes)
+  if (memUsed > 500) {
+    addLog(`[Memory] ⚠️ High memory usage: ${memUsed.toFixed(2)} MB`);
+  }
+}, 5 * 60 * 1000);
+
+function clearBotTimeouts(){
+  if(reconnectTimeoutId){clearTimeout(reconnectTimeoutId);reconnectTimeoutId=null;}
+  if(connectionTimeoutId){clearTimeout(connectionTimeoutId);connectionTimeoutId=null;}
+}
+function clearAllIntervals(){activeIntervals.forEach(id=>clearInterval(id));activeIntervals=[];}
+function addInterval(cb,delay){const id=setInterval(cb,delay);activeIntervals.push(id);return id;}
+
+const KICK_REASONS={
+  PROXY_DUPLICATE:"already connected to this proxy",
+  THROTTLE_KEYWORDS:["throttl","wait before reconnect","too fast"],
+};
+
+function getReconnectDelay(){
+  const r=(lastKickReason||"").toLowerCase();
+  if(r.includes(KICK_REASONS.PROXY_DUPLICATE))return 65000+Math.floor(Math.random()*15000);
+  if(lastKickReason==="")return 30000+Math.floor(Math.random()*10000);
+  if(botState.wasThrottled||KICK_REASONS.THROTTLE_KEYWORDS.some(k=>r.includes(k))){
+    botState.wasThrottled=false;return 60000+Math.floor(Math.random()*60000);
+  }
+  const base=config.utils["auto-reconnect-delay"]||3000;
+  const max=config.utils["max-reconnect-delay"]||30000;
+  return Math.min(base*Math.pow(2,botState.reconnectAttempts),max)+Math.floor(Math.random()*2000);
+}
+
+function createBot(){
+  if(!botRunning)return;
+  if(isReconnecting){addLog("[Bot] Already reconnecting...");return;}
+  if(bot){
+    clearAllIntervals();
+    try{bot.removeAllListeners();bot.end();}catch(_){}
+    bot=null;
+  }
+  addLog(`[Bot] Connecting to ${config.server.ip}:${config.server.port}`);
+  try{
+    const ver=config.server.version?.trim()!==""?config.server.version:false;
+    bot=mineflayer.createBot({
+      username:config["bot-account"].username,
+      password:config["bot-account"].password||undefined,
+      auth:config["bot-account"].type,
+      host:config.server.ip,
+      port:config.server.port,
+      version:ver,
+      hideErrors:false,
+      keepAlive:false,
+      checkTimeoutInterval:600000,
+    });
+    bot._client.on("keep_alive",packet=>{
+      try{bot._client.write("keep_alive",{keepAliveId:packet.keepAliveId});}catch(_){}
+    });
+    bot.loadPlugin(pathfinder);
+    clearBotTimeouts();
+    connectionTimeoutId=setTimeout(()=>{
+      if(!botState.connected){
+        addLog("[Bot] Connection timeout 150s");
+        try{bot.removeAllListeners();bot.end();}catch(_){}
+        bot=null;scheduleReconnect();
+      }
+    },150000);
+    let spawnHandled=false;
+    bot.once("spawn",()=>{
+      if(spawnHandled)return;
+      spawnHandled=true;lastKickReason=null;clearBotTimeouts();
+      botState.connected=true;botState.lastActivity=Date.now();
+      botState.reconnectAttempts=0;botState.lastKickAnalysis=null;
+      isReconnecting=false;
+      addLog(`[Bot] [+] Spawned! Version: ${bot.version}`);
+      startTelemetry(bot,config.server.ip);
+      const mcData=require("minecraft-data")(bot.version);
+      const defaultMove=new Movements(bot,mcData);
+      defaultMove.allowFreeMotion=false;defaultMove.canDig=false;
+      defaultMove.liquidCost=1000;defaultMove.fallDamageCost=1000;
+      addInterval(()=>{if(bot&&botState.connected)botState.ping=bot.player?.ping??null;},5000);
+      bot.on("health",()=>{botState.health=bot.health;botState.food=bot.food;});
+      bot.on("chat",(username,message)=>{if(username!==bot.username)addChat(username,message);});
+      initializeModules(bot,mcData,defaultMove);
+      setTimeout(()=>{
+        if(bot&&botState.connected&&config.server["try-creative"])safeBotChat("/gamemode creative");
+      },3000);
+    });
+    bot.on("kicked",reason=>{
+      const kr=typeof reason==="object"?JSON.stringify(reason):String(reason||"");
+      addLog(`[Bot] Kicked: ${kr}`);
+      botState.connected=false;clearAllIntervals();
+      let kt=kr;try{kt=JSON.parse(kr).text||kr;}catch(_){}
+      lastKickReason=kt;
+      botState.lastKickAnalysis=analyzeKickReason(kt);
+      addLog(`[KickAnalyzer] ${botState.lastKickAnalysis.label}: ${botState.lastKickAnalysis.tip}`);
+      addReconnectEvent(kt,"kicked");
+      if(KICK_REASONS.THROTTLE_KEYWORDS.some(k=>kt.toLowerCase().includes(k)))botState.wasThrottled=true;
+    });
+    bot.on("end",reason=>{
+      addLog(`[Bot] Disconnected: ${reason||"Unknown"}`);
+      botState.connected=false;clearAllIntervals();spawnHandled=false;
+      addReconnectEvent(reason||"Unknown","disconnect");
+      if(botRunning)scheduleReconnect();
+    });
+    bot.on("error",err=>{
+      const msg=err?.message||String(err);
+      addLog(`[Bot] Error: ${msg}`);
+      botState.errors.push({type:"error",message:msg,time:Date.now()});
+    });
+  }catch(err){
+    addLog(`[Bot] Failed: ${err.message}`);
+    scheduleReconnect();
+  }
+}
+
+function scheduleReconnect(){
+  if(!botRunning)return;
+  clearBotTimeouts();
+  if(isReconnecting)return;
+  isReconnecting=true;botState.reconnectAttempts++;
+  const delay=getReconnectDelay();
+  addLog(`[Bot] Reconnecting in ${(delay/1000).toFixed(1)}s (attempt #${botState.reconnectAttempts})`);
+  reconnectTimeoutId=setTimeout(()=>{
+    reconnectTimeoutId=null;isReconnecting=false;lastKickReason=null;createBot();
+  },delay);
+}
+
+function initializeModules(bot,mcData,defaultMove){
+  addLog("[Modules] Initializing...");
+  if(config.utils["auto-auth"]?.enabled){
+    const pw=config.utils["auto-auth"].password;let authHandled=false;
+    const tryAuth=type=>{
+      if(authHandled||!bot||!botState.connected)return;authHandled=true;
+      if(type==="register"){safeBotChat(`/register ${pw} ${pw}`);addLog("[Auth] /register sent");}
+      else{safeBotChat(`/login ${pw}`);addLog("[Auth] /login sent");}
+    };
+    bot.on("messagestr",msg=>{
+      if(authHandled)return;const m=msg.toLowerCase();
+      if(m.includes("/register")||m.includes("register "))tryAuth("register");
+      else if(m.includes("/login")||m.includes("login "))tryAuth("login");
+    });
+    setTimeout(()=>{if(!authHandled&&bot&&botState.connected){safeBotChat(`/login ${pw}`);authHandled=true;}},10000);
+  }
+  if(config.utils["chat-messages"]?.enabled){
+    const messages=config.utils["chat-messages"].messages;
+    if(config.utils["chat-messages"].repeat){
+      let i=0;
+      addInterval(()=>{
+        if(bot&&botState.connected){safeBotChat(messages[i]);botState.lastActivity=Date.now();i=(i+1)%messages.length;}
+      },config.utils["chat-messages"]["repeat-delay"]*1000);
+    }else{
+      messages.forEach((msg,idx)=>setTimeout(()=>{if(bot&&botState.connected)safeBotChat(msg);},idx*1500));
+    }
+  }
+  const cw=config.movement?.["circle-walk"]?.enabled;
+  if(config.position?.enabled&&!cw){
+    bot.pathfinder.setMovements(defaultMove);
+    bot.pathfinder.setGoal(new GoalBlock(config.position.x,config.position.y,config.position.z));
+  }
+  if(config.utils["anti-afk"]?.enabled){
+    addInterval(()=>{if(!bot||!botState.connected)return;try{bot.swingArm();}catch(_){}},15000+Math.floor(Math.random()*15000));
+    addInterval(()=>{if(!bot||!botState.connected)return;try{bot.setQuickBarSlot(Math.floor(Math.random()*9));}catch(_){}},20000+Math.floor(Math.random()*20000));
+    addInterval(()=>{
+      if(!bot||!botState.connected)return;
+      try{bot.look(Math.random()*Math.PI*2,(Math.random()-.5)*.5,true);botState.lastActivity=Date.now();}catch(_){}
+    },10000+Math.floor(Math.random()*10000));
+    if(!cw){
+      addInterval(()=>{
+        if(!bot||!botState.connected||typeof bot.setControlState!=="function")return;
+        try{
+          bot.look(Math.random()*Math.PI*2,0,true);bot.setControlState("forward",true);
+          setTimeout(()=>{if(bot&&typeof bot.setControlState==="function")bot.setControlState("forward",false);},400+Math.floor(Math.random()*600));
+          botState.lastActivity=Date.now();
+        }catch(e){addLog(`[AntiAFK] ${e.message}`);}
+      },45000+Math.floor(Math.random()*45000));
+    }
+    addInterval(()=>{
+      if(!bot||!botState.connected||typeof bot.setControlState!=="function")return;
+      try{
+        bot.setControlState("jump",true);
+        setTimeout(()=>{if(bot&&typeof bot.setControlState==="function")bot.setControlState("jump",false);},300);
+        botState.lastActivity=Date.now();
+      }catch(e){}
+    },60000+Math.floor(Math.random()*60000));
+    if(config.utils["anti-afk"].sneak){
+      try{if(typeof bot.setControlState==="function")bot.setControlState("sneak",true);}catch(_){}
+    }
+  }
+  addLog("[Modules] All initialized!");
+}
+
+const readline=require("readline");
+const rl=readline.createInterface({input:process.stdin,output:process.stdout,terminal:false});
+rl.on("line",line=>{
+  if(!bot||!botState.connected){addLog("[Console] Bot not connected");return;}
+  const t=line.trim();
+  if(t.startsWith("say "))safeBotChat(t.slice(4));
+  else if(t.startsWith("cmd "))safeBotChat("/"+t.slice(4));
+  else if(t==="status")addLog(`Connected: ${botState.connected}, Uptime: ${formatUptime(Math.floor((Date.now()-botState.startTime)/1000))}`);
+  else safeBotChat(t);
+});
+
+process.on("uncaughtException",err=>{
+  const msg=err?.message||String(err)||"Unknown";
+  try{addLog(`[FATAL] ${msg}`);}catch(_){}
+  const isNet=["PartialReadError","ECONNRESET","EPIPE","ETIMEDOUT","timed out","write after end"].some(k=>msg.includes(k));
+  try{clearAllIntervals();}catch(_){}
+  try{botState.connected=false;}catch(_){}
+  try{
+    if(isReconnecting){isReconnecting=false;if(reconnectTimeoutId){clearTimeout(reconnectTimeoutId);reconnectTimeoutId=null;}}
+  }catch(_){}
+  setTimeout(()=>{try{scheduleReconnect();}catch(e){}},isNet?5000:10000);
+});
+
+process.on("unhandledRejection",reason=>{
+  const msg=String(reason);
+  addLog(`[FATAL] Rejection: ${msg}`);
+  const isNet=["ETIMEDOUT","ECONNRESET","EPIPE","ENOTFOUND","timed out","PartialReadError"].some(k=>msg.includes(k));
+  if(isNet&&!isReconnecting){
+    clearAllIntervals();botState.connected=false;
+    if(bot){try{bot.end();}catch(_){}bot=null;}
+    scheduleReconnect();
+  }
+});
+
+process.on("SIGTERM",()=>addLog("[System] SIGTERM — ignoring."));
+process.on("SIGINT",()=>addLog("[System] SIGINT — ignoring."));
+
+addLog("=".repeat(50));
+addLog("  Minecraft AFK Bot v3.0");
+addLog("=".repeat(50));
+addLog(`Server: ${config.server.ip}:${config.server.port}`);
+addLog(`Version: ${config.server.version||"auto-detect"}`);
+addLog("=".repeat(50));
+
+createBot();
