@@ -6,8 +6,8 @@
     "type": "offline"
   },
   "server": {
-    "ip": "ChillCraftSMP2.aternos.me",
-    "port": 14212,
+    "ip": "Bablone.aternos.me,
+    "port":  62739,
     "version": "1.21.11",
     "try-creative": false
   },
